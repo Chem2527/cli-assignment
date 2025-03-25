@@ -1,20 +1,23 @@
-# Use the official Python image, but pin the version for security and consistency
-FROM python:latest
+# Use specific Debian Bookworm Python image with no extra packages
+FROM python:3.11-slim-bookworm
 
-# Set the working directory in the container
+# Set up minimal environment
 WORKDIR /app
 
-# Copy the requirements.txt file into the container
+# Install only runtime dependencies (no build tools)
 COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt && \
+    pip cache purge && \
+    # Remove unnecessary packages that might contain vulnerabilities
+    apt-get remove -y libaom3 libopenexr-3-1-30 zlib1g-dev && \
+    apt-get autoremove -y && \
+    rm -rf /var/lib/apt/lists/*
 
-# Install dependencies securely
-RUN pip install --no-cache-dir -r requirements.txt
-
-# Copy the rest of the application code into the container
+# Copy app files
 COPY . .
 
-# Expose port 7002 to make the app accessible
-EXPOSE 7002
+# Run as non-root
+USER 1001
 
-# Run the app with appropriate environment variables
+EXPOSE 7002
 CMD ["python", "app.py"]
