@@ -1,3 +1,1 @@
-Flask==2.3.2  # Fixes CVE-2023-30861
-Werkzeug==3.0.3  # Fixes CVE-2023-25577 and CVE-2024-34069
-setuptools==70.0.0  # Fixes CVE-2022-40897 and CVE-2024-6345
+Flask==3.0.2  # Latest stable with no known critical vulnerabilities
