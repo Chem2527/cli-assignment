@@ -9,6 +9,7 @@ def add_security_headers(response):
     response.headers['X-Content-Type-Options'] = 'nosniff'
     response.headers['X-Frame-Options'] = 'DENY'
     response.headers['Content-Security-Policy'] = "default-src 'self'"
+    response.headers['Strict-Transport-Security'] = 'max-age=63072000; includeSubDomains'
     return response
 
 # Apply proxy fix if behind a reverse proxy
@@ -19,6 +20,7 @@ def home():
     return '''
     <html>
         <head>
+            <title>Secure Flask App</title>
             <style>
                 .mixed-color {
                     color: blue;
