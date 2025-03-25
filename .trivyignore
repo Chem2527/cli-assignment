@@ -1,0 +1,4 @@
+# Ignore these CVEs (false positives or low-risk)
+CVE-2023-6879  # libaom3 - not used in runtime
+CVE-2023-5841  # libopenexr - not used in runtime
+CVE-2023-45853 # zlib - marked will_not_fix by Debian
