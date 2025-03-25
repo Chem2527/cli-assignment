@@ -25,7 +25,7 @@ jobs:
           image-ref: 'vulnerable-python-app'  # Name of the built Docker image
           format: 'table'  # Output format of the vulnerability scan (table, json, sarif, etc.)
           exit-code: '1'  # Fail the build if vulnerabilities are found
-          severity: 'CRITICAL'  # Only fail on critical and high vulnerabilities
+          severity: 'CRITICAL,HIGH'  # Only fail on critical and high vulnerabilities
 
 
 
