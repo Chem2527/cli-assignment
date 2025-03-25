@@ -28,3 +28,4 @@ jobs:
           severity: 'CRITICAL,HIGH'  # Only fail on critical and high vulnerabilities
 
 
+
