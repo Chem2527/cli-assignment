@@ -1,1 +1,2 @@
-Flask==3.0.2  # Latest stable with no known critical vulnerabilities
+Flask==3.0.2
+Werkzeug==3.0.3  # Explicitly pinned to avoid transitive vulnerabilities
