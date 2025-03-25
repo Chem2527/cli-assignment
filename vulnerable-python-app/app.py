@@ -1,4 +1,5 @@
 from flask import Flask, request
+import os
 
 app = Flask(__name__)
 
@@ -16,10 +17,11 @@ def home():
             </style>
         </head>
         <body>
-            <p class="mixed-color">Hello, I'm Kavita. I'm developing & testing a vulnerable app through Trivy.</p>
+            <p class="mixed-color">Hello, I'm Kavita. I'm developing & testing a secure app.</p>
         </body>
     </html>
     '''
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=7002, debug=True)
+    # Turn off debug in production environment
+    app.run(host="0.0.0.0", port=7002, debug=os.environ.get('FLASK_ENV') == 'development')
