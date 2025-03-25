@@ -17,7 +17,7 @@ jobs:
 
       - name: Build the Docker image
         run: |
-          docker build -t vulnerable-python-app .  # Build the Docker image from the Dockerfile
+         docker build -t vulnerable-python-app -f vulnerable-python-app/Dockerfile vulnerable-python-app/  # Build the Docker image from the Dockerfile inside the vulnerable-python-app folder
 
       - name: Scan for vulnerabilities using Trivy
         uses: aquasecurity/trivy-action@master  # Trivy GitHub Action for scanning Docker images
