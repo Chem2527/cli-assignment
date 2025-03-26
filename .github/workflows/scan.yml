@@ -1,68 +1,40 @@
-name: Container Vulnerability Scan
+name: Trivy Scan and Deploy
 
 on:
   push:
     branches:
-      - main  # Trigger action when changes are pushed to the main branch
+      - main  # Trigger on pushes to the main branch
 
 jobs:
-  scan:
-    runs-on: ubuntu-latest  # The job runs on the latest Ubuntu runner
+  trivy-scan-and-deploy:
+    runs-on: ubuntu-latest
 
     steps:
-      # Checkout the repository code
+      # Step 1: Checkout code
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v2
 
-      # Set up Docker for building the image
-      - name: Set up Docker
-        uses: docker/setup-buildx-action@v2
-
-      # Build the Docker image
-      - name: Build the Docker image
-        run: |
-          docker build -t vulnerable-python-app -f vulnerable-python-app/Dockerfile vulnerable-python-app/
-
-      # Scan the Docker image for vulnerabilities using Trivy
-      - name: Scan for vulnerabilities using Trivy
-        uses: aquasecurity/trivy-action@master
+      # Step 2: Run Trivy vulnerability scanner
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@0.28.0
         with:
-          image-ref: 'vulnerable-python-app'  # The Docker image to be scanned
-          format: 'json'  # Output format as JSON
-          output: 'trivy-report.json'  # Store the Trivy scan report in this file
-          exit-code: '0'  # Do not fail the build if vulnerabilities are found
-          severity: 'CRITICAL,HIGH'  # Scan for critical and high severity vulnerabilities
+          scan-type: 'fs'  # File system scan
+          format: 'json'
+          output: 'report.json'
+          severity: 'CRITICAL,HIGH'
 
-      # Send the Trivy report to Slack channel named "vulneribilities"
-      - name: Send Trivy report to Slack
-        uses: slackapi/slack-github-action@v1.22.0
-        with:
-          channel: 'vulneribilities'  # Specify the Slack channel name
-          text: 'Trivy vulnerability scan completed.'
-          attachments: |
-            [
-              {
-                "pretext": "Vulnerability Scan Report",
-                "title": "Trivy Scan Report",
-                "text": "The Trivy scan report is attached.",
-                "color": "warning",
-                "fields": [
-                  {
-                    "title": "Scan Summary",
-                    "value": "The Trivy scan has found critical and high vulnerabilities.",
-                    "short": false
-                  }
-                ],
-                "footer": "Scan completed by GitHub Actions"
-              }
-            ]
-          webhook-url: ${{ secrets.SLACK_WEBHOOK_URL }}  # Slack webhook URL from GitHub Secrets
-      
-      # Push the Trivy report to the Azure VM for Prometheus storage
-      - name: Push Trivy report to Azure VM for Prometheus
+      # Step 3: Set up SSH for EC2 access
+      - name: Configure SSH
         run: |
-          # Create the target directory on the Azure VM (if it doesn't exist)
-          ssh -o StrictHostKeyChecking=no -i ${{ secrets.EC2_SSH_KEY }} azureuser@${{ secrets.AZURE_VM_IP }} "mkdir -p /home/azureuser/trivy-reports/"
+          echo "${{ secrets.AZURE_SSH_KEY }}" > private_key.pem
+          chmod 600 private_key.pem
 
-          # Copy the Trivy report to the Azure VM
-          scp -o StrictHostKeyChecking=no -i ${{ secrets.EC2_SSH_KEY }} trivy-report.json azureuser@${{ secrets.AZURE_VM_IP }}:/home/azureuser/trivy-reports/
+      # Step 4: Copy report to EC2 instance
+      - name: Push report to EC2
+        run: |
+          scp -i private_key.pem -o StrictHostKeyChecking=no report.json azureuser@${{ secrets.AZURE_VM_IP }}:/home/azureuser/vulnerabilities/
+
+      # Step 5: Send Slack notification
+      - name: Notify Slack
+        run: |
+          curl -X POST -H 'Content-type: application/json' --data '{"text":"Trivy scan completed and report pushed to EC2."}' ${{ secrets.SLACK_WEBHOOK_URL }}
