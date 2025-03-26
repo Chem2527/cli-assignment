@@ -41,7 +41,7 @@ jobs:
           chmod 600 private_key.pem
           ssh-keyscan -H ${{ secrets.AZURE_VM_IP }} >> ~/.ssh/known_hosts
  
-      # Step 6: Push report to EC2 instance
+      # Step 6: Push report EC2 instance
       - name: Push report to EC2 instance
         run: |
           scp -i private_key.pem \
