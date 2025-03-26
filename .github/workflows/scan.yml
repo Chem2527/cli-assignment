@@ -35,8 +35,18 @@ jobs:
 
       # Send the Trivy report to Slack channel named "vulneribilities"
       - name: Send Trivy report to Slack
-        run: |
-          curl -X POST -H 'Content-type: application/json' --data @trivy-report.json ${{ secrets.SLACK_WEBHOOK_URL }}
+        uses: act10ns/slack@v2
+        with:
+          status: ${{ job.status }}
+          fields: |
+            {
+              "title": "Trivy Scan Report",
+              "value": "The Trivy scan report is attached.",
+              "short": false
+            }
+          file: trivy-report.json
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
 
       # Push the Trivy report to the Azure VM for Prometheus storage
       - name: Push Trivy report to Azure VM for Prometheus
