@@ -8,24 +8,37 @@ on:
 jobs:
   scan:
     runs-on: ubuntu-latest
+
     steps:
+      # Checkout the repository code
       - name: Checkout code
-        uses: actions/checkout@v4  # Checkout the repository code
+        uses: actions/checkout@v4
 
+      # Set up Docker for building the image
       - name: Set up Docker
-        uses: docker/setup-buildx-action@v2  # Set up Docker Buildx (for multi-platform support)
+        uses: docker/setup-buildx-action@v2
 
+      # Build the Docker image
       - name: Build the Docker image
         run: |
-         docker build -t vulnerable-python-app -f vulnerable-python-app/Dockerfile vulnerable-python-app/  # Build the Docker image from the Dockerfile inside the vulnerable-python-app folder
+          docker build -t vulnerable-python-app -f vulnerable-python-app/Dockerfile vulnerable-python-app/
 
+      # Scan the Docker image for vulnerabilities using Trivy
       - name: Scan for vulnerabilities using Trivy
-        uses: aquasecurity/trivy-action@master  # Trivy GitHub Action for scanning Docker images
+        uses: aquasecurity/trivy-action@master
         with:
-          image-ref: 'vulnerable-python-app'  # Name of the built Docker image
-          format: 'table'  # Output format of the vulnerability scan (table, json, sarif, etc.)
-          exit-code: '1'  # Fail the build if vulnerabilities are found
-          severity: 'CRITICAL'  # Only fail on critical and high vulnerabilities
+          image-ref: 'vulnerable-python-app'
+          format: 'json'
+          output: 'trivy-report.json'
+          exit-code: '1'
+          severity: 'CRITICAL,HIGH'
 
+      # Send the Trivy report to the Slack channel named "vulneribilities"
+      - name: Send Trivy report to Slack
+        run: |
+          curl -X POST -H 'Content-type: application/json' --data @trivy-report.json ${{ secrets.SLACK_WEBHOOK_URL }}
 
-
+      # Push the Trivy report to the EC2 instance for Prometheus
+      - name: Push Trivy report to EC2 for Prometheus
+        run: |
+          scp -i ${{ secrets.EC2_SSH_KEY }} trivy-report.json ubuntu@${{ secrets.EC2_IP }}:/path/to/prometheus/data/

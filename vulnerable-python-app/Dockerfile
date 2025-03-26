@@ -8,8 +8,11 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt && \
     pip cache purge && \
-    # Remove unnecessary packages that might contain vulnerabilities
-    apt-get remove -y libaom3 libopenexr-3-1-30 zlib1g-dev && \
+    # Update apt sources and install necessary runtime libraries if required
+    apt-get update && apt-get install -y \
+        libaom3 libopenexr-3-1-30 zlib1g-dev || true && \
+    # Remove unnecessary packages that might contain vulnerabilities (if they were installed)
+    apt-get remove -y libaom3 libopenexr-3-1-30 zlib1g-dev || true && \
     apt-get autoremove -y && \
     rm -rf /var/lib/apt/lists/*
 
