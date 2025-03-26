@@ -1,4 +1,4 @@
-name: Container Vulnerability Scan & Report
+name: Container Vulnerability Scan & report
 
 on:
   push:
