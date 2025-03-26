@@ -7,7 +7,7 @@ on:
 
 jobs:
   scan:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-latest  # The job runs on the latest Ubuntu runner
 
     steps:
       # Checkout the repository code
@@ -27,18 +27,25 @@ jobs:
       - name: Scan for vulnerabilities using Trivy
         uses: aquasecurity/trivy-action@master
         with:
-          image-ref: 'vulnerable-python-app'
-          format: 'json'
-          output: 'trivy-report.json'
-          exit-code: '1'
-          severity: 'CRITICAL,HIGH'
+          image-ref: 'vulnerable-python-app'  # The Docker image to be scanned
+          format: 'json'  # Output format as JSON
+          output: 'trivy-report.json'  # Store the Trivy scan report in this file
+          exit-code: '1'  # Fail the build if any vulnerabilities are found
+          severity: 'CRITICAL,HIGH'  # Scan for critical and high severity vulnerabilities
 
-      # Send the Trivy report to the Slack channel named "vulneribilities"
+      # Send the Trivy report to Slack channel named "vulneribilities"
       - name: Send Trivy report to Slack
         run: |
           curl -X POST -H 'Content-type: application/json' --data @trivy-report.json ${{ secrets.SLACK_WEBHOOK_URL }}
 
-      # Push the Trivy report to the EC2 instance for Prometheus
+      # Push the Trivy report to the EC2 instance for Prometheus storage
       - name: Push Trivy report to EC2 for Prometheus
         run: |
-          scp -i ${{ secrets.EC2_SSH_KEY }} trivy-report.json ubuntu@${{ secrets.EC2_IP }}:/path/to/prometheus/data/
+          # Create the target directory on the EC2 instance (if it doesn't exist)
+          ssh -o StrictHostKeyChecking=no -i ${{ secrets.EC2_SSH_KEY }} ubuntu@${{ secrets.EC2_IP }} "mkdir -p /home/ubuntu/trivy-reports/"
+
+          # Copy the Trivy report to the EC2 instance
+          scp -o StrictHostKeyChecking=no -i ${{ secrets.EC2_SSH_KEY }} trivy-report.json ubuntu@${{ secrets.EC2_IP }}:/home/ubuntu/trivy-reports/
+
+          # (Optional) You can also push to a Prometheus-compatible location if needed
+          # Example: scp -i ${{ secrets.EC2_SSH_KEY }} trivy-report.json ubuntu@${{ secrets.EC2_IP }}:/home/ubuntu/prometheus/data/
