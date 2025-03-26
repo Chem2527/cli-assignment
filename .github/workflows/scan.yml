@@ -1,40 +1,62 @@
-name: Trivy Scan and Deploy
+name: Container Vulnerability Scan & Report
 
 on:
   push:
     branches:
-      - main  # Trigger on pushes to the main branch
+      - main
 
 jobs:
-  trivy-scan-and-deploy:
+  scan-and-deploy:
     runs-on: ubuntu-latest
-
     steps:
-      # Step 1: Checkout code
       - name: Checkout code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
 
-      # Step 2: Run Trivy vulnerability scanner
-      - name: Run Trivy vulnerability scanner
+      - name: Set up Docker
+        uses: docker/setup-buildx-action@v2
+
+      - name: Build Docker image
+        run: |
+          docker build -t vulnerable-python-app \
+          -f vulnerable-python-app/Dockerfile \
+          vulnerable-python-app/
+
+      - name: Run Trivy vulnerability scan
         uses: aquasecurity/trivy-action@0.28.0
         with:
-          scan-type: 'fs'  # File system scan
+          image-ref: 'vulnerable-python-app'
           format: 'json'
-          output: 'report.json'
+          output: 'trivy-report.json'
           severity: 'CRITICAL,HIGH'
 
-      # Step 3: Set up SSH for EC2 access
-      - name: Configure SSH
+      - name: Configure SSH for EC2
         run: |
-          echo "${{ secrets.AZURE_SSH_KEY }}" > private_key.pem
+          echo "${{ secrets.EC2_SSH_KEY }}" > private_key.pem
           chmod 600 private_key.pem
 
-      # Step 4: Copy report to EC2 instance
-      - name: Push report to EC2
+      - name: Push report to EC2 instance
         run: |
-          scp -i private_key.pem -o StrictHostKeyChecking=no report.json azureuser@${{ secrets.AZURE_VM_IP }}:/home/azureuser/vulnerabilities/
+          scp -i private_key.pem -o StrictHostKeyChecking=no \
+          trivy-report.json azureuser@${{ secrets.AZURE_VM_IP }}:/home/azureuser/vulnerabilities/
 
-      # Step 5: Send Slack notification
-      - name: Notify Slack
+      - name: Slack Notification
+        if: always()  # Send notification even if previous steps fail
         run: |
-          curl -X POST -H 'Content-type: application/json' --data '{"text":"Trivy scan completed and report pushed to EC2."}' ${{ secrets.SLACK_WEBHOOK_URL }}
+          STATUS="${{ job.status }}"
+          COLOR=#36a64f
+          [ "$STATUS" = "success" ] || COLOR=#ff0000
+          
+          curl -X POST -H 'Content-type: application/json' \
+          --data "{
+            \"attachments\": [{
+              \"color\": \"$COLOR\",
+              \"blocks\": [{
+                \"type\": \"section\",
+                \"text\": {
+                  \"type\": \"mrkdwn\",
+                  \"text\": \"*Trivy Scan Status*: \`$STATUS\`\n*Branch*: \`${{ github.ref }}\`\n*Report Path*: \`/home/azureuser/vulnerabilities/trivy-report.json\`\"
+                }
+              }]
+            }]
+          }" \
+          ${{ secrets.SLACK_WEBHOOK_URL }}
