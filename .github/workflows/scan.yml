@@ -42,7 +42,7 @@ jobs:
       - name: Push Trivy report to Azure VM for Prometheus
         run: |
           # Create the target directory on the Azure VM (if it doesn't exist)
-          ssh -o StrictHostKeyChecking=no -i ${{ secrets.EC2_SSH_KEY }} azureuser@${{ secrets.EC2_IP }} "mkdir -p /home/azureuser/trivy-reports/"
+          ssh -o StrictHostKeyChecking=no -i ${{ secrets.AZURE_SSH_KEY }} azureuser@${{ secrets.AZURE_VM_IP }} "mkdir -p /home/azureuser/trivy-reports/"
 
           # Copy the Trivy report to the Azure VM
-          scp -o StrictHostKeyChecking=no -i ${{ secrets.EC2_SSH_KEY }} trivy-report.json azureuser@${{ secrets.EC2_IP }}:/home/azureuser/trivy-reports/
+          scp -o StrictHostKeyChecking=no -i ${{ secrets.AZURE_SSH_KEY }} trivy-report.json azureuser@${{ secrets.AZURE_VM_IP }}:/home/azureuser/trivy-reports/
