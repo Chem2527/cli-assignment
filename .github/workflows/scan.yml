@@ -47,17 +47,16 @@ jobs:
           scp -i private_key.pem \
           trivy-report.json azureuser@${{ secrets.AZURE_VM_IP }}:/home/azureuser/vulnerabilities/
 
-      # Step 7: Send Email Notification to Slack Channel via Email Address
-      - name: Send Email Notification to Slack Channel
+      # Step 7: Send Slack Notification to saikrishna11 Channel via Webhook URL
+      - name: Send Slack Notification to saikrishna11 Channel
         if: always()  # Send notification regardless of success or failure
         run: |
           STATUS="${{ job.status }}"
-          SUBJECT="Build Status Update"
-          BODY="Build Status: $STATUS\nThe report has been pushed to EC2 at \`/home/azureuser/vulnerabilities/trivy-report.json\`."
+          BODY="Build Status Update:\n\nBuild Status: $STATUS\nThe report has been pushed to EC2 at \`/home/azureuser/vulnerabilities/trivy-report.json\`."
 
           curl -X POST -H "Content-Type: application/json" \
             --data "{
+              \"channel\": \"#saikrishna11\",
               \"text\": \"${BODY}\"
             }" \
             https://hooks.slack.com/services/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  # Replace with your actual Slack webhook URL
-
