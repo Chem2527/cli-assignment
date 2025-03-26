@@ -54,7 +54,7 @@ jobs:
         with:
           job-status: ${{ job.status }}
           slack-bot-token: ${{ secrets.SLACK_BOT_TOKEN }}
-          channel: 'sairkishna'  # Replace with your actual Slack channel name or ID
+          channel: 'saikrishna11'  # Replace with your actual Slack channel name or ID
           message-format: |
             {
               "text": "Build Status Update",
