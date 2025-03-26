@@ -9,18 +9,22 @@ jobs:
   scan-and-deploy:
     runs-on: ubuntu-latest
     steps:
+      # Step 1: Checkout code
       - name: Checkout code
         uses: actions/checkout@v4
 
+      # Step 2: Set up Docker
       - name: Set up Docker
         uses: docker/setup-buildx-action@v2
 
+      # Step 3: Build Docker image
       - name: Build Docker image
         run: |
           docker build -t vulnerable-python-app \
           -f vulnerable-python-app/Dockerfile \
           vulnerable-python-app/
 
+      # Step 4: Run Trivy vulnerability scan
       - name: Run Trivy vulnerability scan
         uses: aquasecurity/trivy-action@0.28.0
         with:
@@ -29,34 +33,46 @@ jobs:
           output: 'trivy-report.json'
           severity: 'CRITICAL,HIGH'
 
+      # Step 5: Configure SSH for EC2
       - name: Configure SSH for EC2
         run: |
+          mkdir -p ~/.ssh
           echo "${{ secrets.EC2_SSH_KEY }}" > private_key.pem
           chmod 600 private_key.pem
+          ssh-keyscan -H ${{ secrets.AZURE_VM_IP }} >> ~/.ssh/known_hosts
 
+      # Step 6: Push report to EC2 instance
       - name: Push report to EC2 instance
         run: |
-          scp -i private_key.pem -o StrictHostKeyChecking=no \
+          scp -i private_key.pem \
           trivy-report.json azureuser@${{ secrets.AZURE_VM_IP }}:/home/azureuser/vulnerabilities/
 
-      - name: Slack Notification
-        if: always()  # Send notification even if previous steps fail
-        run: |
-          STATUS="${{ job.status }}"
-          COLOR=#36a64f
-          [ "$STATUS" = "success" ] || COLOR=#ff0000
-          
-          curl -X POST -H 'Content-type: application/json' \
-          --data "{
-            \"attachments\": [{
-              \"color\": \"$COLOR\",
-              \"blocks\": [{
-                \"type\": \"section\",
-                \"text\": {
-                  \"type\": \"mrkdwn\",
-                  \"text\": \"*Trivy Scan Status*: \`$STATUS\`\n*Branch*: \`${{ github.ref }}\`\n*Report Path*: \`/home/azureuser/vulnerabilities/trivy-report.json\`\"
+      # Step 7: Send Slack Notification with Build Status and Report
+      - name: Send Slack Notification
+        if: always()  # Send notification regardless of success or failure
+        uses: kpritam/slack-job-status-action@v1
+        with:
+          job-status: ${{ job.status }}
+          slack-bot-token: ${{ secrets.SLACK_BOT_TOKEN }}
+          channel: '#vulnerabilities'  # Replace with your actual Slack channel name or ID
+          message-format: |
+            {
+              "text": "Build Status Update",
+              "attachments": [
+                {
+                  "color": "${{ job.status == 'success' && '#36a64f' || '#ff0000' }}",
+                  "fields": [
+                    {
+                      "title": "Job Status",
+                      "value": "${{ job.status }}",
+                      "short": true
+                    },
+                    {
+                      "title": "Report Location",
+                      "value": "The report has been pushed to EC2 at `/home/azureuser/vulnerabilities/trivy-report.json`.",
+                      "short": false
+                    }
+                  ]
                 }
-              }]
-            }]
-          }" \
-          ${{ secrets.SLACK_WEBHOOK_URL }}
+              ]
+            }
