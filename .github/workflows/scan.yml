@@ -31,21 +31,18 @@ jobs:
           format: 'json'  # Output format as JSON
           output: 'trivy-report.json'  # Store the Trivy scan report in this file
           severity: 'CRITICAL,HIGH'  # Scan for critical and high severity vulnerabilities
-        # Do not fail the job on vulnerabilities (No exit-code set, so the pipeline continues)
+        continue-on-error: true  # This ensures the pipeline continues even if vulnerabilities are found
 
       # Send the Trivy report to Slack channel named "vulneribilities"
       - name: Send Trivy report to Slack
         run: |
           curl -X POST -H 'Content-type: application/json' --data @trivy-report.json ${{ secrets.SLACK_WEBHOOK_URL }}
 
-      # Push the Trivy report to the EC2 instance for Prometheus storage
-      - name: Push Trivy report to EC2 for Prometheus
+      # Push the Trivy report to the Azure VM for Prometheus storage
+      - name: Push Trivy report to Azure VM for Prometheus
         run: |
-          # Create the target directory on the EC2 instance (if it doesn't exist)
-          ssh -o StrictHostKeyChecking=no -i ${{ secrets.EC2_SSH_KEY }} ubuntu@${{ secrets.EC2_IP }} "mkdir -p /home/ubuntu/trivy-reports/"
+          # Create the target directory on the Azure VM (if it doesn't exist)
+          ssh -o StrictHostKeyChecking=no -i ${{ secrets.EC2_SSH_KEY }} azureuser@${{ secrets.EC2_IP }} "mkdir -p /home/azureuser/trivy-reports/"
 
-          # Copy the Trivy report to the EC2 instance
-          scp -o StrictHostKeyChecking=no -i ${{ secrets.EC2_SSH_KEY }} trivy-report.json ubuntu@${{ secrets.EC2_IP }}:/home/ubuntu/trivy-reports/
-
-          # (Optional) You can also push to a Prometheus-compatible location if needed
-          # Example: scp -i ${{ secrets.EC2_SSH_KEY }} trivy-report.json ubuntu@${{ secrets.EC2_IP }}:/home/ubuntu/prometheus/data/
+          # Copy the Trivy report to the Azure VM
+          scp -o StrictHostKeyChecking=no -i ${{ secrets.EC2_SSH_KEY }} trivy-report.json azureuser@${{ secrets.EC2_IP }}:/home/azureuser/trivy-reports/
