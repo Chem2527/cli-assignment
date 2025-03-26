@@ -30,29 +30,39 @@ jobs:
           image-ref: 'vulnerable-python-app'  # The Docker image to be scanned
           format: 'json'  # Output format as JSON
           output: 'trivy-report.json'  # Store the Trivy scan report in this file
+          exit-code: '0'  # Do not fail the build if vulnerabilities are found
           severity: 'CRITICAL,HIGH'  # Scan for critical and high severity vulnerabilities
-        continue-on-error: true  # This ensures the pipeline continues even if vulnerabilities are found
 
       # Send the Trivy report to Slack channel named "vulneribilities"
       - name: Send Trivy report to Slack
-        uses: act10ns/slack@v2
+        uses: slackapi/slack-github-action@v1.22.0
         with:
-          status: ${{ job.status }}
-          fields: |
-            {
-              "title": "Trivy Scan Report",
-              "value": "The Trivy scan report is attached.",
-              "short": false
-            }
-          file: trivy-report.json
-        env:
-          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
-
+          channel: 'vulneribilities'  # Specify the Slack channel name
+          text: 'Trivy vulnerability scan completed.'
+          attachments: |
+            [
+              {
+                "pretext": "Vulnerability Scan Report",
+                "title": "Trivy Scan Report",
+                "text": "The Trivy scan report is attached.",
+                "color": "warning",
+                "fields": [
+                  {
+                    "title": "Scan Summary",
+                    "value": "The Trivy scan has found critical and high vulnerabilities.",
+                    "short": false
+                  }
+                ],
+                "footer": "Scan completed by GitHub Actions"
+              }
+            ]
+          webhook-url: ${{ secrets.SLACK_WEBHOOK_URL }}  # Slack webhook URL from GitHub Secrets
+      
       # Push the Trivy report to the Azure VM for Prometheus storage
       - name: Push Trivy report to Azure VM for Prometheus
         run: |
           # Create the target directory on the Azure VM (if it doesn't exist)
-          ssh -o StrictHostKeyChecking=no -i ${{ secrets.AZURE_SSH_KEY }} azureuser@${{ secrets.AZURE_VM_IP }} "mkdir -p /home/azureuser/trivy-reports/"
+          ssh -o StrictHostKeyChecking=no -i ${{ secrets.EC2_SSH_KEY }} azureuser@${{ secrets.AZURE_VM_IP }} "mkdir -p /home/azureuser/trivy-reports/"
 
           # Copy the Trivy report to the Azure VM
-          scp -o StrictHostKeyChecking=no -i ${{ secrets.AZURE_SSH_KEY }} trivy-report.json azureuser@${{ secrets.AZURE_VM_IP }}:/home/azureuser/trivy-reports/
+          scp -o StrictHostKeyChecking=no -i ${{ secrets.EC2_SSH_KEY }} trivy-report.json azureuser@${{ secrets.AZURE_VM_IP }}:/home/azureuser/trivy-reports/
