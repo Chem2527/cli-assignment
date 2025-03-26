@@ -37,7 +37,7 @@ jobs:
       - name: Configure SSH for EC2
         run: |
           mkdir -p ~/.ssh
-          echo "${{ secrets.AZURE_SSH_KEY }}" > private_key.pem
+          echo "${{ secrets.EC2_SSH_KEY }}" > private_key.pem
           chmod 600 private_key.pem
           ssh-keyscan -H ${{ secrets.AZURE_VM_IP }} >> ~/.ssh/known_hosts
 
@@ -50,29 +50,28 @@ jobs:
       # Step 7: Send Slack Notification with Build Status and Report
       - name: Send Slack Notification
         if: always()  # Send notification regardless of success or failure
-        uses: kpritam/slack-job-status-action@v1
-        with:
-          job-status: ${{ job.status }}
-          slack-bot-token: ${{ secrets.SLACK_BOT_TOKEN }}
-          channel: '#vulnerabilities'  # Replace with your actual Slack channel name or ID
-          message-format: |
-            {
-              "text": "Build Status Update",
-              "attachments": [
+        run: |
+          STATUS="${{ job.status }}"
+          COLOR="#36a64f"
+          [ "$STATUS" = "success" ] || COLOR="#ff0000"
+          
+          curl -X POST -H 'Content-type: application/json' --data "{
+            \"channel\": \"#vulnerabilities\",  # Replace with your actual channel ID or name
+            \"text\": \"Build Status Update\",
+            \"attachments\": [{
+              \"color\": \"$COLOR\",
+              \"fields\": [
                 {
-                  "color": "${{ job.status == 'success' && '#36a64f' || '#ff0000' }}",
-                  "fields": [
-                    {
-                      "title": "Job Status",
-                      "value": "${{ job.status }}",
-                      "short": true
-                    },
-                    {
-                      "title": "Report Location",
-                      "value": "The report has been pushed to EC2 at `/home/azureuser/vulnerabilities/trivy-report.json`.",
-                      "short": false
-                    }
-                  ]
+                  \"title\": \"Job Status\",
+                  \"value\": \"$STATUS\",
+                  \"short\": true
+                },
+                {
+                  \"title\": \"Report Location\",
+                  \"value\": \"The report has been pushed to EC2 at \`/home/azureuser/vulnerabilities/trivy-report.json\`.\",
+                  \"short\": false
                 }
               ]
-            }
+            }]
+          }" \
+          -H "Authorization: Bearer ${{ secrets.SLACK_BOT_TOKEN }}" https://slack.com/api/chat.postMessage
