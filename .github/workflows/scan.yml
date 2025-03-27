@@ -1,23 +1,25 @@
-name: Container Vulnerability Scan using Trivy
+name: Vulnerability Scan
 
 on:
   push:
     branches:
-      - main  # Trigger action when changes are pushed to the main branch
+      - main
+  pull_request:
 
 jobs:
   scan:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4  # Checkout the repository code
+        uses: actions/checkout@v3
 
       - name: Set up Docker
-        uses: docker/setup-buildx-action@v2  # Set up Docker Buildx (for multi-platform support)
+        uses: docker/setup-buildx-action@v2
 
       - name: Build the Docker image
         run: |
-         docker build -t vulnerable-python-app -f vulnerable-python-app/Dockerfile vulnerable-python-app/  # Build the Docker image from the Dockerfile inside the vulnerable-python-app folder
+          docker build -t vulnerable-python-app -f vulnerable-python-app/Dockerfile vulnerable-python-app/
 
       - name: Install Trivy
         run: |
@@ -26,56 +28,20 @@ jobs:
           wget https://github.com/aquasecurity/trivy/releases/download/v0.41.0/trivy_0.41.0_Linux-64bit.deb
           sudo dpkg -i trivy_0.41.0_Linux-64bit.deb
 
-      - name: Scan for vulnerabilities using Trivy
-        uses: aquasecurity/trivy-action@master  # Trivy GitHub Action for scanning Docker images
+      - name: Run Trivy scan and generate report
+        run: trivy image --format json --output trivy-report.json --severity CRITICAL,HIGH vulnerable-python-app
+
+      - name: Attach report for debugging
+        run: cat trivy-report.json
+
+      - name: Send Slack Notification
+        uses: slackapi/slack-github-action@v2
         with:
-          image-ref: 'vulnerable-python-app'
-          format: 'json'
-          output: 'trivy-report.json'
-          severity: 'CRITICAL,HIGH'
-
-      - name: Install SSH Client
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y openssh-client
-
-      - name: Configure SSH for EC2
-        run: |
-          mkdir -p ~/.ssh
-          echo "${{ secrets.AZURE_SSH_KEY }}" > ~/.ssh/id_rsa
-          chmod 400 ~/.ssh/id_rsa
-          ssh-keyscan -H ${{ secrets.AZURE_VM_IP }} >> ~/.ssh/known_hosts
-
-      - name: Push report to EC2 instance
-        run: |
-          scp -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa \
-          trivy-report.json azureuser@${{ secrets.AZURE_VM_IP }}:/home/azureuser/reports/
-
-      - name: Send Slack Notification with Build Status and Report
-        if: always()  # Send notification regardless of success or failure
-        uses: kpritam/slack-job-status-action@v1
-        with:
-          job-status: ${{ job.status }}
-          slack-bot-token: ${{ secrets.SLACK_BOT_TOKEN }}
-          channel: '#vulnerability-reports'  # Replace with your actual Slack channel name or ID
-          message-format: |
-            {
-              "text": "Build Status Update",
-              "attachments": [
-                {
-                  "color": "${{ job.status == 'success' && '#36a64f' || '#ff0000' }}",
-                  "fields": [
-                    {
-                      "title": "Job Status",
-                      "value": "${{ job.status }}",
-                      "short": true
-                    },
-                    {
-                      "title": "Report Location",
-                      "value": "The report has been pushed to EC2 at `/home/azureuser/reports/trivy-report.json`.",
-                      "short": false
-                    }
-                  ]
-                }
-              ]
-            }
+          slack-message: |
+            *Build Status:* ${{ job.status }}
+            Vulnerability report has been generated.
+          slack-token: ${{ secrets.SLACK_BOT_TOKEN }}
+          slack-channel: '#vulnerability-reports'
+          upload-file: trivy-report.json
+          file-title: trivy-report.json
+          file-type: json
