@@ -61,7 +61,16 @@ jobs:
             # Construct the Slack message (using a simple text message)
             SLACK_MESSAGE=$(cat <<EOF
             {
-              "text": "Trivy Scan Report\\nA container vulnerability scan has completed. The JSON report has been pushed to the EC2 instance at: ${EC2_REPORT_PATH}"
+              "text": "Trivy Scan Report",
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "A container vulnerability scan has completed. The JSON report has been pushed to the EC2 instance at: ${EC2_REPORT_PATH}"
+                  }
+                }
+              ]
             }
             EOF
             )
