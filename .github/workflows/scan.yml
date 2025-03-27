@@ -1,4 +1,4 @@
-name: Container Vulnerability Scan using Trivy
+name: Container Vulnerability Scan using trivy
 
 on:
   push:
@@ -27,56 +27,59 @@ jobs:
           sudo dpkg -i trivy_0.41.0_Linux-64bit.deb
 
       - name: Scan for vulnerabilities using Trivy
-        uses: aquasecurity/trivy-action@master  # Trivy GitHub Action for scanning Docker images
+        id: trivy_scan
+        run: |
+          trivy image --format json --output trivy-report.json --severity CRITICAL,HIGH vulnerable-python-app
+      
+      - name: Upload Trivy Report Artifact
+        uses: actions/upload-artifact@v4
         with:
-          image-ref: 'vulnerable-python-app'
-          format: 'json'
-          output: 'trivy-report.json'
-          severity: 'CRITICAL,HIGH'
+          name: trivy-report
+          path: trivy-report.json
 
-      - name: Install SSH Client
+      - name: Set job status variable
         run: |
-          sudo apt-get update
-          sudo apt-get install -y openssh-client
+          if [ "${{ job.status }}" == "success" ]; then
+            echo "JOB_STATUS=Passed" >> $GITHUB_ENV
+          else
+            echo "JOB_STATUS=Failed" >> $GITHUB_ENV
+          fi
+        shell: bash
 
-      - name: Configure SSH for EC2
+      - name: Send Slack Notification with Results
+        if: always()
+        env:
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+          SLACK_CHANNEL: "#vulnerability-reports"
         run: |
-          mkdir -p ~/.ssh
-          echo "${{ secrets.AZURE_SSH_KEY }}" > ~/.ssh/id_rsa
-          chmod 400 ~/.ssh/id_rsa
-          ssh-keyscan -H ${{ secrets.AZURE_VM_IP }} >> ~/.ssh/known_hosts
-
-      - name: Push report to EC2 instance
-        run: |
-          scp -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa \
-          trivy-report.json azureuser@${{ secrets.AZURE_VM_IP }}:/home/azureuser/reports/
-
-      - name: Send Slack Notification with Build Status and Report
-        if: always()  # Send notification regardless of success or failure
-        uses: kpritam/slack-job-status-action@v1
-        with:
-          job-status: ${{ job.status }}
-          slack-bot-token: ${{ secrets.SLACK_BOT_TOKEN }}
-          channel: '#vulnerability-reports'  # Replace with your actual Slack channel name or ID
-          message-format: |
-            {
-              "text": "Build Status Update",
-              "attachments": [
-                {
-                  "color": "${{ job.status == 'success' && '#36a64f' || '#ff0000' }}",
-                  "fields": [
-                    {
-                      "title": "Job Status",
-                      "value": "${{ job.status }}",
-                      "short": true
-                    },
-                    {
-                      "title": "Report Location",
-                      "value": "The report has been pushed to EC2 at `/home/azureuser/reports/trivy-report.json`.",
-                      "short": false
-                    }
-                  ]
+          # Construct the Slack message with proper line breaks and formatting
+          SLACK_MESSAGE=$(cat <<EOF
+          {
+            "text": "Container Vulnerability Scan Results",
+            "blocks": [
+              {
+                "type": "section",
+                "text": {
+                  "type": "mrkdwn",
+                  "text": "*Build Status:* ${JOB_STATUS}"
                 }
-              ]
-            }
+              },
+              {
+                "type": "section",
+                "text": {
+                  "type": "mrkdwn",
+                  "text": "Vulnerability report is attached."
+                }
+              }
+            ]
+          }
+          EOF
+          )
 
+          # Construct the file upload request using curl (Note the @ before the file path)
+          curl -X POST -H "Authorization: Bearer ${SLACK_BOT_TOKEN}" \
+          -H 'Content-Type: multipart/form-data' \
+          -F "channel=${SLACK_CHANNEL}" \
+          -F "initial_comment=$SLACK_MESSAGE" \
+          -F "file=@trivy-report.json" \
+          https://slack.com/api/files.upload
