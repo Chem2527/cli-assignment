@@ -48,42 +48,29 @@ jobs:
 
       - name: Push report to EC2 instance
         run: |
-          # Get the current date in the format DD_MM_YYYY
-          DATE=$(date +"%d_%m_%Y")
-          REPORT_FILE="vulnerabilities_${DATE}.json"
-          
-          # Rename the fetched Trivy report to match the desired filename
-          mv trivy-report.json $REPORT_FILE
-          
-          # Push the renamed file to EC2
-          scp -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa $REPORT_FILE azureuser@${{ secrets.AZURE_VM_IP }}:/home/azureuser/reports/
+          scp -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa \
+          trivy-report.json azureuser@${{ secrets.AZURE_VM_IP }}:/home/azureuser/reports/
 
-      - name: Download the report file from EC2 to GitHub Runner
+      - name: Send custom Slack Notification with Build Status and Report
+        if: always()  # Send notification regardless of success or failure
         run: |
-          # Get the current date in the format DD_MM_YYYY
-          DATE=$(date +"%d_%m_%Y")
-          REPORT_FILE="vulnerabilities_${DATE}.json"
-          
-          # Download the file from EC2 to the GitHub runner
-          scp -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa azureuser@${{ secrets.AZURE_VM_IP }}:/home/azureuser/reports/$REPORT_FILE ./
-
-      - name: Upload the created file to Slack channel
-        run: |
-          # Check if the file exists before attempting to upload
-          if [ -f "./vulnerabilities_${DATE}.json" ]; then
-            echo "File exists, uploading to Slack..."
-            
-            # Upload the file to Slack
-            curl -F file=@./vulnerabilities_${DATE}.json \
-              -F "initial_comment=Trivy Vulnerability Scan Report" \
-              -F channels="#vulnerability-reports" \
-              -H "Authorization: Bearer ${{ secrets.SLACK_BOT_TOKEN }}" \
-              https://slack.com/api/files.upload
-          else
-            echo "File does not exist, skipping upload."
-          fi
-        shell: /usr/bin/bash -e {0}
-        env:
-          TRIVY_SEVERITY: CRITICAL,HIGH
-          TRIVY_FORMAT: json
-          TRIVY_OUTPUT: trivy-report.json
+          curl -X POST -H 'Content-type: application/json' --data '{
+            "text": "Build Status Update",
+            "attachments": [
+              {
+                "color": "${{ job.status == 'success' && '#36a64f' || '#ff0000' }}",
+                "fields": [
+                  {
+                    "title": "Job Status",
+                    "value": "${{ job.status }}",
+                    "short": true
+                  },
+                  {
+                    "title": "Report Location",
+                    "value": "The report has been pushed to EC2 at `/home/azureuser/reports/trivy-report.json`.",
+                    "short": false
+                  }
+                ]
+              }
+            ]
+          }' ${{ secrets.SLACK_WEBHOOK_URL }}
