@@ -1,23 +1,23 @@
-name: Container Vulnerability Scan using trivy
+name: Container Vulnerability Scan using Trivy
 
 on:
   push:
     branches:
-      - main
+      - main  # Trigger action when changes are pushed to the main branch
 
 jobs:
   scan:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v4  # Checkout the repository code
 
       - name: Set up Docker
-        uses: docker/setup-buildx-action@v2
+        uses: docker/setup-buildx-action@v2  # Set up Docker Buildx (for multi-platform support)
 
       - name: Build the Docker image
         run: |
-          docker build -t vulnerable-python-app -f vulnerable-python-app/Dockerfile vulnerable-python-app/
+         docker build -t vulnerable-python-app -f vulnerable-python-app/Dockerfile vulnerable-python-app/  # Build the Docker image from the Dockerfile inside the vulnerable-python-app folder
 
       - name: Install Trivy
         run: |
@@ -26,47 +26,56 @@ jobs:
           wget https://github.com/aquasecurity/trivy/releases/download/v0.41.0/trivy_0.41.0_Linux-64bit.deb
           sudo dpkg -i trivy_0.41.0_Linux-64bit.deb
 
-      - name: Run Trivy scan and generate report
-        run: trivy image --format json --output trivy-report.json --severity CRITICAL,HIGH vulnerable-python-app
-
-      - name: Set job status variable
-        run: |
-          if [ "${{ job.status }}" == "success" ]; then
-            echo "JOB_STATUS=Passed" >> $GITHUB_ENV
-          else
-            echo "JOB_STATUS=Failed" >> $GITHUB_ENV
-          fi
-        shell: bash
-
-      - name: Send Slack Notification
-        uses: slackapi/slack-github-action@v2
-        env:
-          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+      - name: Scan for vulnerabilities using Trivy
+        uses: aquasecurity/trivy-action@master  # Trivy GitHub Action for scanning Docker images
         with:
-          payload: |
-            {
-              "text": "Container Vulnerability Scan Results",
-              "blocks": [
-                {
-                  "type": "section",
-                  "text": {
-                    "type": "mrkdwn",
-                    "text": "*Build Status:* ${{ env.JOB_STATUS }}"
-                  }
-                },
-                {
-                  "type": "section",
-                  "text": {
-                    "type": "mrkdwn",
-                    "text": "Vulnerability report is attached."
-                  }
-                }
-              ],
-              "file": "@trivy-report.json",
-              "channels": "#vulnerability-reports"
-            }
+          image-ref: 'vulnerable-python-app'
+          format: 'json'
+          output: 'trivy-report.json'
+          severity: 'CRITICAL,HIGH'
+
+      - name: Install SSH Client
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y openssh-client
+
+      - name: Configure SSH for EC2
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.AZURE_SSH_KEY }}" > ~/.ssh/id_rsa
+          chmod 400 ~/.ssh/id_rsa
+          ssh-keyscan -H ${{ secrets.AZURE_VM_IP }} >> ~/.ssh/known_hosts
+
+      - name: Push report to EC2 instance
+        run: |
+          scp -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa \
+          trivy-report.json azureuser@${{ secrets.AZURE_VM_IP }}:/home/azureuser/reports/
+
+      - name: Send Slack Notification with Build Status and Report
+        if: always()  # Send notification regardless of success or failure
+        uses: kpritam/slack-job-status-action@v1
+        with:
+          job-status: ${{ job.status }}
           slack-bot-token: ${{ secrets.SLACK_BOT_TOKEN }}
-          slack-channel: '#vulnerability-reports'
-          upload-file: trivy-report.json
-          file-title: trivy-report.json
-          file-type: json
+          channel: '#vulnerability-reports'  # Replace with your actual Slack channel name or ID
+          message-format: |
+            {
+              "text": "Build Status Update",
+              "attachments": [
+                {
+                  "color": "${{ job.status == 'success' && '#36a64f' || '#ff0000' }}",
+                  "fields": [
+                    {
+                      "title": "Job Status",
+                      "value": "${{ job.status }}",
+                      "short": true
+                    },
+                    {
+                      "title": "Report Location",
+                      "value": "The report has been pushed to EC2 at `/home/azureuser/reports/trivy-report.json`.",
+                      "short": false
+                    }
+                  ]
+                }
+              ]
+            }
