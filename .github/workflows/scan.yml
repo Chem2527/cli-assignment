@@ -48,31 +48,37 @@ jobs:
 
       - name: Push report to EC2 instance
         run: |
-          scp -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa \
-          trivy-report.json azureuser@${{ secrets.AZURE_VM_IP }}:/home/azureuser/reports/
-
-      - name: Fetch Trivy report from EC2
-        run: |
-          # SSH into EC2 and fetch the Trivy report
-          ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa azureuser@${{ secrets.AZURE_VM_IP }} "cat /home/azureuser/reports/trivy-report.json" > trivy-report.json
-
-      - name: Create Report File with Custom Date Format
-        run: |
           # Get the current date in the format DD_MM_YYYY
           DATE=$(date +"%d_%m_%Y")
           REPORT_FILE="vulnerabilities_${DATE}.json"
           
           # Rename the fetched Trivy report to match the desired filename
           mv trivy-report.json $REPORT_FILE
-
-          # Optionally, push this renamed file back to EC2 if needed
+          
+          # Push the renamed file to EC2
           scp -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa $REPORT_FILE azureuser@${{ secrets.AZURE_VM_IP }}:/home/azureuser/reports/
 
-      - name: Upload File to Slack
+      - name: Upload the created file to Slack channel
         run: |
-          # Upload the created file to Slack channel
-          curl -F file=@vulnerabilities_${DATE}.json \
-            -F "initial_comment=Trivy Vulnerability Scan Report" \
-            -F channels="#vulnerability-reports" \
-            -H "Authorization: Bearer ${{ secrets.SLACK_BOT_TOKEN }}" \
-            https://slack.com/api/files.upload
+          # Get the current date in the format DD_MM_YYYY
+          DATE=$(date +"%d_%m_%Y")
+          REPORT_FILE="vulnerabilities_${DATE}.json"
+          
+          # Check if the file exists before attempting to upload
+          if [ -f "/home/azureuser/reports/$REPORT_FILE" ]; then
+            echo "File exists, uploading to Slack..."
+            
+            # Upload the file to Slack
+            curl -F file=@"/home/azureuser/reports/$REPORT_FILE" \
+              -F "initial_comment=Trivy Vulnerability Scan Report" \
+              -F channels="#vulnerability-reports" \
+              -H "Authorization: Bearer ${{ secrets.SLACK_BOT_TOKEN }}" \
+              https://slack.com/api/files.upload
+          else
+            echo "File does not exist, skipping upload."
+          fi
+        shell: /usr/bin/bash -e {0}
+        env:
+          TRIVY_SEVERITY: CRITICAL,HIGH
+          TRIVY_FORMAT: json
+          TRIVY_OUTPUT: trivy-report.json
