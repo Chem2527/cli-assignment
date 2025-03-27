@@ -25,47 +25,41 @@ jobs:
           format: 'json'
           output: 'trivy-report.json'
           severity: 'CRITICAL,HIGH'
- 
-      # Step 5: Configure SSH for EC2
+
+      - name: Install SSH Client
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y openssh-client
+
       - name: Configure SSH for EC2
         run: |
           mkdir -p ~/.ssh
-          echo "${{ secrets.AZURE_SSH_KEY }}" > private_key.pem
-          chmod 600 private_key.pem
+          echo "${{ secrets.AZURE_SSH_KEY }}" > ~/.ssh/id_rsa
+          chmod 400 ~/.ssh/id_rsa
           ssh-keyscan -H ${{ secrets.AZURE_VM_IP }} >> ~/.ssh/known_hosts
- 
-      # Step 6: Push report to EC2 instance
+
       - name: Push report to EC2 instance
         run: |
-          scp -i private_key.pem \
+          scp -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa \
           trivy-report.json azureuser@${{ secrets.AZURE_VM_IP }}:/home/azureuser/vulnerabilities/
- 
-      # Step 7: Send Slack Notification with Build Status and Report
+
       - name: Send Slack Notification
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}  # Use SLACK_WEBHOOK_URL
+          EC2_REPORT_PATH: "/home/azureuser/vulnerabilities/trivy-report.json"
         if: always()  # Send notification regardless of success or failure
-        uses: kpritam/slack-job-status-action@v1
-        with:
-          job-status: ${{ job.status }}
-          slack-bot-token: ${{ secrets.SLACK_BOT_TOKEN }}
-          channel: '#channeltesting'  # Replace with your actual Slack channel name or ID
-          message-format: |
+        run: |
+          if [ -n "$SLACK_WEBHOOK_URL" ]; then
+            # Construct the Slack message (using a simple text message)
+            SLACK_MESSAGE=$(cat <<EOF
             {
-              "text": "Build Status Update",
-              "attachments": [
-                {
-                  "color": "${{ job.status == 'success' && '#36a64f' || '#ff0000' }}",
-                  "fields": [
-                    {
-                      "title": "Job Status",
-                      "value": "${{ job.status }}",
-                      "short": true
-                    },
-                    {
-                      "title": "Report Location",
-                      "value": "The report has been pushed to EC2 at `/home/azureuser/vulnerabilities/trivy-report.json`.",
-                      "short": false
-                    }
-                  ]
-                }
-              ]
+              "text": "Trivy Scan Report\\nA container vulnerability scan has completed. The JSON report has been pushed to the EC2 instance at: ${EC2_REPORT_PATH}"
             }
+            EOF
+            )
+
+            # Send the message to Slack using curl and the webhook URL
+            curl -X POST -H 'Content-type: application/json' --data "$SLACK_MESSAGE" "$SLACK_WEBHOOK_URL"
+          else
+            echo "SLACK_WEBHOOK_URL is not set. Skipping Slack notification."
+          fi
