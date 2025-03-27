@@ -67,12 +67,12 @@ jobs:
                   "fields": [
                     {
                       "title": "Job Status",
-                      "value": "${{ job.status }}",
-                      "short": true
+                      "value": "Job Status: ${{ job.status }}",
+                      "short": false
                     },
                     {
                       "title": "Report Location",
-                      "value": "The report has been pushed to EC2 at `/home/azureuser/reports/trivy-report.json`.",
+                      "value": "Report Location: The report has been pushed to EC2 at `/home/azureuser/reports/trivy-report.json`.",
                       "short": false
                     }
                   ]
