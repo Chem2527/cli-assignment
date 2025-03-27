@@ -53,13 +53,24 @@ jobs:
 
       - name: Send custom Slack Notification with Build Status and Report
         if: always()  # Send notification regardless of success or failure
-        uses: slackapi/slack-github-action@v2
-        with:
-          slack-message: |
-            Build Status Update
-
-            Job Status: ${{ job.status }}
-
-            Report Location: The report has been pushed to EC2 at `/home/azureuser/reports/trivy-report.json`.
-          slack-token: ${{ secrets.SLACK_BOT_TOKEN }}
-          slack-channel: '#vulnerability-reports'  # Replace with your actual Slack channel name or ID
+        run: |
+          curl -X POST -H 'Content-type: application/json' --data '{
+            "text": "Build Status Update",
+            "attachments": [
+              {
+                "color": "${{ job.status == 'success' && '#36a64f' || '#ff0000' }}",
+                "fields": [
+                  {
+                    "title": "Job Status",
+                    "value": "${{ job.status }}",
+                    "short": true
+                  },
+                  {
+                    "title": "Report Location",
+                    "value": "The report has been pushed to EC2 at `/home/azureuser/reports/trivy-report.json`.",
+                    "short": false
+                  }
+                ]
+              }
+            ]
+          }' ${{ secrets.SLACK_WEBHOOK_URL }}
