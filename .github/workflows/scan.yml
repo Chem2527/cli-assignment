@@ -51,32 +51,32 @@ jobs:
           scp -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa \
           trivy-report.json azureuser@${{ secrets.AZURE_VM_IP }}:/home/azureuser/reports/
 
-      - name: Send Slack Notification
-        env:
-          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}  # Use SLACK_WEBHOOK_URL
-          EC2_REPORT_PATH: "/home/azureuser/vulnerabilities/trivy-report.json"
+      - name: Send Slack Notification with Build Status and Report
         if: always()  # Send notification regardless of success or failure
-        run: |
-          if [ -n "$SLACK_WEBHOOK_URL" ]; then
-            # Construct the Slack message (using a simple text message)
-            SLACK_MESSAGE=$(cat <<EOF
+        uses: kpritam/slack-job-status-action@v1
+        with:
+          job-status: ${{ job.status }}
+          slack-bot-token: ${{ secrets.SLACK_BOT_TOKEN }}
+          channel: '#channeltesting'  # Replace with your actual Slack channel name or ID
+          message-format: |
             {
-              "text": "Trivy Scan Report",
-              "blocks": [
+              "text": "Build Status Update",
+              "attachments": [
                 {
-                  "type": "section",
-                  "text": {
-                    "type": "mrkdwn",
-                    "text": "A container vulnerability scan has completed. The JSON report has been pushed to the EC2 instance at: ${EC2_REPORT_PATH}"
-                  }
+                  "color": "${{ job.status == 'success' && '#36a64f' || '#ff0000' }}",
+                  "fields": [
+                    {
+                      "title": "Job Status",
+                      "value": "${{ job.status }}",
+                      "short": true
+                    },
+                    {
+                      "title": "Report Location",
+                      "value": "The report has been pushed to EC2 at `/home/azureuser/reports/trivy-report.json`.",
+                      "short": false
+                    }
+                  ]
                 }
               ]
             }
-            EOF
-            )
 
-            # Send the message to Slack using curl and the webhook URL
-            curl -X POST -H 'Content-type: application/json' --data "$SLACK_MESSAGE" "$SLACK_WEBHOOK_URL"
-          else
-            echo "SLACK_WEBHOOK_URL is not set. Skipping Slack notification."
-          fi
