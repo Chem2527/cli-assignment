@@ -46,10 +46,23 @@ jobs:
           chmod 400 ~/.ssh/id_rsa
           ssh-keyscan -H ${{ secrets.AZURE_VM_IP }} >> ~/.ssh/known_hosts
 
-      - name: Push report to EC2 instance
+      - name: Rename Trivy report file with current date
         run: |
+          # Get the current date in dd_mm_yyyy format
+          DATE=$(date +"%d_%m_%Y")
+          REPORT_FILE="vulnerabilities_${DATE}.json"
+          
+          # Rename the fetched Trivy report to match the desired filename
+          mv trivy-report.json $REPORT_FILE
+          
+          # Debug: Check if the file was renamed successfully
+          ls -l
+
+      - name: Push renamed report to EC2 instance
+        run: |
+          # Push the renamed file to EC2
           scp -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa \
-          trivy-report.json azureuser@${{ secrets.AZURE_VM_IP }}:/home/azureuser/reports/
+            vulnerabilities_${DATE}.json azureuser@${{ secrets.AZURE_VM_IP }}:/home/azureuser/reports/
 
       - name: Send custom Slack Notification with Build Status and Report
         if: always()  # Send notification regardless of success or failure
@@ -67,7 +80,7 @@ jobs:
                   },
                   {
                     "title": "Report Location",
-                    "value": "The report has been pushed to EC2 at `/home/azureuser/reports/trivy-report.json`.",
+                    "value": "The report has been pushed to EC2 at `/home/azureuser/reports/vulnerabilities_${DATE}.json`.",
                     "short": false
                   }
                 ]
