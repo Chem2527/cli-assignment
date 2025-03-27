@@ -36,14 +36,12 @@ jobs:
       - name: Build the Docker image
         run: |
          docker build -t vulnerable-python-app -f vulnerable-python-app/Dockerfile vulnerable-python-app/  # Build the Docker image from the Dockerfile inside the vulnerable-python-app folder
-
       - name: Install Trivy
         run: |
           sudo apt-get update
           sudo apt-get install -y wget
           wget https://github.com/aquasecurity/trivy/releases/download/v0.41.0/trivy_0.41.0_Linux-64bit.deb
           sudo dpkg -i trivy_0.41.0_Linux-64bit.deb
-
       - name: Scan for vulnerabilities using Trivy
         uses: aquasecurity/trivy-action@master  # Trivy GitHub Action for scanning Docker images
         with:
@@ -56,88 +54,71 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y openssh-client
-
       - name: Configure SSH for EC2
         run: |
           mkdir -p ~/.ssh
           echo "${{ secrets.AZURE_SSH_KEY }}" > ~/.ssh/id_rsa
           chmod 400 ~/.ssh/id_rsa
           ssh-keyscan -H ${{ secrets.AZURE_VM_IP }} >> ~/.ssh/known_hosts
-
       - name: Push report to EC2 instance
         run: |
           scp -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa \
           trivy-report.json azureuser@${{ secrets.AZURE_VM_IP }}:/home/azureuser/reports/
-
-      - name: Send Slack Notification with Build Status and Report
+      - name: Send custom Slack Notification with Build Status and Report
         if: always()  # Send notification regardless of success or failure
-        uses: kpritam/slack-job-status-action@v1
-        with:
-          job-status: ${{ job.status }}
-          slack-bot-token: ${{ secrets.SLACK_BOT_TOKEN }}
-          channel: '#vulnerability-reports'  # Replace with your actual Slack channel name or ID
-          message-format: |
-            {
-              "text": "Build Status Update",
-              "attachments": [
-                {
-                  "color": "${{ job.status == 'success' && '#36a64f' || '#ff0000' }}",
-                  "fields": [
-                    {
-                      "title": "Job Status",
-                      "value": "${{ job.status }}",
-                      "short": true
-                    },
-                    {
-                      "title": "Report Location",
-                      "value": "The report has been pushed to EC2 at `/home/azureuser/reports/trivy-report.json`.",
-                      "short": false
-                    }
-                  ]
-                }
-              ]
-            }
+        run: |
+          curl -X POST -H 'Content-type: application/json' --data '{
+            "text": "Build Status Update",
+            "attachments": [
+              {
+                "color": "${{ job.status == 'success' && '#36a64f' || '#ff0000' }}",
+                "fields": [
+                  {
+                    "title": "Job Status",
+                    "value": "${{ job.status }}",
+                    "short": true
+                  },
+                  {
+                    "title": "Report Location",
+                    "value": "The report has been pushed to EC2 at `/home/azureuser/reports/trivy-report.json`.",
+                    "short": false
+                  }
+                ]
+              }
+            ]
+          }' ${{ secrets.SLACK_WEBHOOK_URL }}
 ```
 
 Explanation of Steps:
+
 ```bash
 Checkout Code:
-
-The actions/checkout action checks out the latest code from the repository to the GitHub runner.
+The `actions/checkout` action is used to check out the latest version of the repository's code to the GitHub runner, making it available for subsequent steps in the pipeline.
 
 Set up Docker:
-
-The docker/setup-buildx-action sets up Docker Buildx to enable multi-platform support.
+The `docker/setup-buildx-action` action is used to set up Docker Buildx, enabling multi-platform support. Buildx allows building images for different architectures and is required for modern Docker workflows.
 
 Build Docker Image:
-
-This step builds the Docker image from the vulnerable-python-app/Dockerfile file and tags it as vulnerable-python-app.
+This step uses the `docker build` command to build a Docker image from the `vulnerable-python-app/Dockerfile` file. The image is tagged with the name `vulnerable-python-app`. This image will later be scanned for vulnerabilities.
 
 Install Trivy:
-
-Trivy is installed by downloading the .deb package and installing it via dpkg. Trivy is a security scanner for vulnerabilities in container images.
+Trivy, a security scanner for container images, is installed by downloading its `.deb` package from the official GitHub release page. The package is then installed using `dpkg`. Trivy scans the Docker images for known vulnerabilities.
 
 Scan Image for Vulnerabilities:
-
-The Trivy scan is run on the built Docker image, and the report is generated in json format, saved to trivy-report.json. The scan focuses on vulnerabilities with a severity of CRITICAL or HIGH.
+In this step, the `aquasecurity/trivy-action` is used to scan the Docker image (`vulnerable-python-app`) for vulnerabilities. The scan is conducted with a severity filter set to `CRITICAL` and `HIGH` vulnerabilities. The scan output is in `JSON` format and saved as `trivy-report.json`.
 
 Install SSH Client:
-
-Installs the SSH client on the runner so that it can use scp to transfer the report to the EC2 instance.
+The SSH client is installed on the GitHub runner to allow secure file transfer using SCP. This is necessary to push the vulnerability report to an EC2 instance.
 
 Configure SSH for EC2:
-
-Sets up SSH by placing the SSH private key (${{ secrets.AZURE_SSH_KEY }}) and configuring known hosts (${{ secrets.AZURE_VM_IP }}) to enable secure file transfers.
+In this step, the SSH private key stored in the GitHub secrets (`${{ secrets.AZURE_SSH_KEY }}`) is used to configure the SSH client on the GitHub runner. The SSH key is saved as `~/.ssh/id_rsa` and permissions are set to `400` for security. The EC2 instance’s IP address (`${{ secrets.AZURE_VM_IP }}`) is added to the list of known hosts to prevent SSH warnings about unknown hosts during the file transfer.
 
 Push Report to EC2:
-
-Uses scp to securely copy the trivy-report.json to an EC2 instance at the specified path (/home/azureuser/reports/).
+The `scp` command is used to securely copy the `trivy-report.json` file to the EC2 instance at the path `/home/azureuser/reports/`. This ensures that the vulnerability report is uploaded to the EC2 instance for further analysis.
 
 Send Slack Notification:
+The notification is sent to Slack using a `curl` command that posts a JSON payload to the Slack webhook URL stored in GitHub secrets (`${{ secrets.SLACK_WEBHOOK_URL }}`). The message includes the build status (success or failure), and the location of the uploaded vulnerability report on the EC2 instance (`/home/azureuser/reports/trivy-report.json`). The color of the message is dynamically set based on the build status—green for success and red for failure.
 
-Sends a Slack notification using the kpritam/slack-job-status-action GitHub Action. The message includes the build status (success or failure) and the location of the report on the EC2 instance.
-
-The report file is attached to the message.
 ```
 
 ## 2. Create a Slack App
