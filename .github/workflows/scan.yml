@@ -18,6 +18,14 @@ jobs:
       - name: Build the Docker image
         run: |
          docker build -t vulnerable-python-app -f vulnerable-python-app/Dockerfile vulnerable-python-app/  # Build the Docker image from the Dockerfile inside the vulnerable-python-app folder
+
+      - name: Install Trivy
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y wget
+          wget https://github.com/aquasecurity/trivy/releases/download/v0.41.0/trivy_0.41.0_Linux-64bit.deb
+          sudo dpkg -i trivy_0.41.0_Linux-64bit.deb
+
       - name: Scan for vulnerabilities using Trivy
         uses: aquasecurity/trivy-action@master  # Trivy GitHub Action for scanning Docker images
         with:
@@ -41,7 +49,7 @@ jobs:
       - name: Push report to EC2 instance
         run: |
           scp -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa \
-          trivy-report.json azureuser@${{ secrets.AZURE_VM_IP }}:/home/azureuser/vulnerabilities/
+          trivy-report.json azureuser@${{ secrets.AZURE_VM_IP }}:/home/azureuser/reports/
 
       - name: Send Slack Notification
         env:
