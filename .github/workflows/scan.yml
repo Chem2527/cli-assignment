@@ -51,31 +51,15 @@ jobs:
           scp -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa \
           trivy-report.json azureuser@${{ secrets.AZURE_VM_IP }}:/home/azureuser/reports/
 
-      - name: Send Slack Notification with Build Status and Report
+      - name: Send custom Slack Notification with Build Status and Report
         if: always()  # Send notification regardless of success or failure
-        uses: kpritam/slack-job-status-action@v1
+        uses: slackapi/slack-github-action@v2
         with:
-          job-status: ${{ job.status }}
-          slack-bot-token: ${{ secrets.SLACK_BOT_TOKEN }}
-          channel: '#vulnerability-reports'  # Replace with your actual Slack channel name or ID
-          message-format: |
-            {
-              "text": "Build Status Update",
-              "attachments": [
-                {
-                  "color": "${{ job.status == 'success' && '#36a64f' || '#ff0000' }}",
-                  "fields": [
-                    {
-                      "title": "Job Status",
-                      "value": "Job Status: ${{ job.status }}",
-                      "short": false
-                    },
-                    {
-                      "title": "Report Location",
-                      "value": "Report Location: The report has been pushed to EC2 at `/home/azureuser/reports/trivy-report.json`.",
-                      "short": false
-                    }
-                  ]
-                }
-              ]
-            }
+          slack-message: |
+            Build Status Update
+
+            Job Status: ${{ job.status }}
+
+            Report Location: The report has been pushed to EC2 at `/home/azureuser/reports/trivy-report.json`.
+          slack-token: ${{ secrets.SLACK_BOT_TOKEN }}
+          slack-channel: '#vulnerability-reports'  # Replace with your actual Slack channel name or ID
