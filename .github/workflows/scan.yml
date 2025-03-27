@@ -51,14 +51,18 @@ jobs:
           scp -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa \
           trivy-report.json azureuser@${{ secrets.AZURE_VM_IP }}:/home/azureuser/reports/
 
-      - name: Send custom Slack Notification with Build Status and Report
+      - name: Fetch and send Trivy report from EC2 to Slack
         if: always()  # Send notification regardless of success or failure
         run: |
-          curl -X POST -H 'Content-type: application/json' --data '{
-            "text": "Build Status Update",
+          # SSH into EC2 and fetch the Trivy report
+          TRIVY_REPORT=$(ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa azureuser@${{ secrets.AZURE_VM_IP }} "cat /home/azureuser/reports/trivy-report.json")
+
+          # Format the JSON report into Slack-compatible message
+          SLACK_MESSAGE=$(echo "$TRIVY_REPORT" | jq -r '{
+            "text": "Trivy Vulnerability Scan Report",
             "attachments": [
               {
-                "color": "${{ job.status == 'success' && '#36a64f' || '#ff0000' }}",
+                "color": "#ff0000",
                 "fields": [
                   {
                     "title": "Job Status",
@@ -66,11 +70,14 @@ jobs:
                     "short": true
                   },
                   {
-                    "title": "Report Location",
-                    "value": "The report has been pushed to EC2 at `/home/azureuser/reports/trivy-report.json`.",
+                    "title": "Trivy Report",
+                    "value": . | tostring,
                     "short": false
                   }
                 ]
               }
             ]
-          }' ${{ secrets.SLACK_WEBHOOK_URL }}
+          }')
+
+          # Send formatted message to Slack
+          curl -X POST -H 'Content-type: application/json' --data "$SLACK_MESSAGE" ${{ secrets.SLACK_WEBHOOK_URL }}
