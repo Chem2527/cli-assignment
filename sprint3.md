@@ -1,5 +1,9 @@
 # Setting up Slack Notifications in GitHub Actions for Container Vulnerability Scan using Trivy
 
+## High level overview diagram
+<img width="761" alt="image" src="https://github.com/user-attachments/assets/68bbcd82-26b7-4044-9fb8-e0e1708b412b" />
+
+
 ## 1. GitHub Actions Workflow File
 Below is the YAML configuration for the GitHub Actions pipeline that does the following:
 
