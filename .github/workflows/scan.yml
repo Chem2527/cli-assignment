@@ -1,5 +1,5 @@
 # .github/workflows/container-vulnerability-scan.yml
-name: Container Vulnerability Scan using Trivy
+name: Container Vulnerability Scan using Triv
 
 on:
   push:
