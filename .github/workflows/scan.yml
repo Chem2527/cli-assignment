@@ -1,41 +1,37 @@
-# .github/workflows/container-vulnerability-scan.yml
-name: Container Vulnerability Scan using Triv
+name: Container Vulnerability Scan using trivy
 
 on:
   push:
     branches:
-      - main
+      - main  # Trigger action when changes are pushed to the main branch
 
 jobs:
   scan:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v4  # Checkout the repository code
 
       - name: Set up Docker
-        uses: docker/setup-buildx-action@v2
+        uses: docker/setup-buildx-action@v2  # Set up Docker Buildx (for multi-platform support)
 
       - name: Build the Docker image
         run: |
-          docker build -t vulnerable-python-app -f vulnerable-python-app/Dockerfile vulnerable-python-app/
-
-      - name: Run Trivy vulnerability scanner
-        uses: aquasecurity/trivy-action@master
+         docker build -t vulnerable-python-app -f vulnerable-python-app/Dockerfile vulnerable-python-app/  # Build the Docker image from the Dockerfile inside the vulnerable-python-app folder
+      - name: Install Trivy
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y wget
+          wget https://github.com/aquasecurity/trivy/releases/download/v0.41.0/trivy_0.41.0_Linux-64bit.deb
+          sudo dpkg -i trivy_0.41.0_Linux-64bit.deb
+      - name: Scan for vulnerabilities using Trivy
+        uses: aquasecurity/trivy-action@master  # Trivy GitHub Action for scanning Docker images
         with:
           image-ref: 'vulnerable-python-app'
-          format: 'template'
-          template: |
-            @aqua/trivy-action/gh-action.tpl
-          output: trivy-results.txt
-          exit-code: '1'
-          ignore-unfixed: true  # Ignore unfixed vulnerabilities
-          severity: 'CRITICAL,HIGH'
-      - name: Upload Trivy scan results
-        uses: actions/upload-artifact@v3
-        with:
-          name: trivy-results
-          path: trivy-results.txt
+          format: 'json'
+          output: 'trivy-report.json'
+          severity: 'CRITICAL'
+
       - name: Install SSH Client
         run: |
           sudo apt-get update
@@ -46,19 +42,18 @@ jobs:
           echo "${{ secrets.AZURE_SSH_KEY }}" > ~/.ssh/id_rsa
           chmod 400 ~/.ssh/id_rsa
           ssh-keyscan -H ${{ secrets.AZURE_VM_IP }} >> ~/.ssh/known_hosts
-
       - name: Push report to EC2 instance
         run: |
-          scp -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa trivy-results.txt azureuser@${{ secrets.AZURE_VM_IP }}:/home/azureuser/reports/
-
+          scp -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa \
+          trivy-report.json azureuser@${{ secrets.AZURE_VM_IP }}:/home/azureuser/reports/
       - name: Send custom Slack Notification with Build Status and Report
-        if: always()
+        if: always()  # Send notification regardless of success or failure
         run: |
           curl -X POST -H 'Content-type: application/json' --data '{
             "text": "Build Status Update",
             "attachments": [
               {
-                "color": "${{ job.status == ''success'' && ''#36a64f'' || ''#ff0000'' }}",
+                "color": "${{ job.status == 'success' && '#36a64f' || '#ff0000' }}",
                 "fields": [
                   {
                     "title": "Job Status",
@@ -67,11 +62,10 @@ jobs:
                   },
                   {
                     "title": "Report Location",
-                    "value": "Trivy report has been pushed to EC2 at `/home/azureuser/reports/trivy-results.txt`.",
+                    "value": "The report has been pushed to EC2 at `/home/azureuser/reports/trivy-report.json`.",
                     "short": false
                   }
                 ]
               }
             ]
           }' ${{ secrets.SLACK_WEBHOOK_URL }}
-
