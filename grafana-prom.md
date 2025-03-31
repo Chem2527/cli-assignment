@@ -249,3 +249,6 @@ trivy_low_vulnerabilities
 
 ## Step 5: Accessing and Viewing the Dashboard
 Once everything is set up, you can access your Grafana dashboard at http://<your_vm_ip>:3000/ and view the metrics for critical, high, medium, and low vulnerabilities.
+
+<img width="956" alt="image" src="https://github.com/user-attachments/assets/eeea625b-29b4-4559-8e86-5abb70255e67" />
+
