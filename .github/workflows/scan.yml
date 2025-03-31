@@ -17,8 +17,8 @@ jobs:
 
       - name: Build the Docker image
         run: |
-         docker build -t vulnerable-python-app -f vulnerable-python-app/Dockerfile vulnerable-python-app/  # Build the Docker image from the Dockerfile inside the vulnerable-python-app folder
-
+          docker build -t vulnerable-python-app -f vulnerable-python-app/Dockerfile vulnerable-python-app/  # Build the Docker image from the Dockerfile inside the vulnerable-python-app folder
+          
       - name: Install Trivy
         run: |
           sudo apt-get update
@@ -33,6 +33,7 @@ jobs:
           format: 'json'
           output: 'trivy-report.json'
           severity: 'CRITICAL,HIGH'
+          exit-code: '1'  # Fail the build if vulnerabilities are found
 
       - name: Install SSH Client
         run: |
