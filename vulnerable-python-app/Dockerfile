@@ -1,5 +1,5 @@
 # Use specific Debian Bookworm Python image with no extra packages
-FROM python:3.11-slim-bookworm
+FROM python:latest-slim-bookworm
 
 # Set up minimal environment
 WORKDIR /app
