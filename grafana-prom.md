@@ -271,4 +271,9 @@ sudo systemctl status trivy-json-exporter.service ##(its running or not)
 sudo systemctl start trivy-json-exporter.service ##(start and wait for 5 mins.)
 ```
 
+## Trivy Report
+
+<img width="677" alt="image" src="https://github.com/user-attachments/assets/8c573292-7ae9-4d35-819d-72b3ab015c76" />
+
+
 
