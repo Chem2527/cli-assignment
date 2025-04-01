@@ -252,3 +252,23 @@ Once everything is set up, you can access your Grafana dashboard at http://<your
 
 <img width="956" alt="image" src="https://github.com/user-attachments/assets/eeea625b-29b4-4559-8e86-5abb70255e67" />
 
+
+## step 6:  Error and how to fix it?
+
+```bash
+trivy_json_exporter (0/1 up)
+Endpoint	State	Labels	Last Scrape	Scrape Duration	Error
+http://localhost:8001/metrics	DOWN	
+instance="localhost:8001"job="trivy_json_exporter"
+2m 5s ago	
+0.449ms
+Get "http://localhost:8001/metrics": dial tcp 127.0.0.1:8001: connect: connection refused
+```
+**solution**
+
+```bash
+sudo systemctl status trivy-json-exporter.service ##(its running or not)
+sudo systemctl start trivy-json-exporter.service ##(start and wait for 5 mins.)
+```
+
+
