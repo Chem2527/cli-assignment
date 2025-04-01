@@ -6,7 +6,7 @@
 ```bash
 A Linux-based machine (Ubuntu in our case).
 
-Proper network configurations, such as allowing the necessary ports for Grafana, Prometheus, and the Trivy JSON Exporter.
+Proper network configurations,such as allowing the necessary ports for Grafana, Prometheus, and the Trivy JSON Exporter.
 
 Administrative access to the machine (sudo privileges).
 ```
