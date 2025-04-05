@@ -9,3 +9,5 @@ Base Score Range	Severity
 7.0-8.9	High
 9.0-10.0 Critical
 ```
+## Architectural Diagram
+<img width="751" alt="image" src="https://github.com/user-attachments/assets/83e498f5-ef14-4f9b-b20f-fbd6750ab0c2" />
